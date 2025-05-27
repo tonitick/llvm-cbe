@@ -2553,6 +2553,7 @@ void CWriter::generateHeader(Module &M) {
       case Intrinsic::rint:
       case Intrinsic::sqrt:
       case Intrinsic::trunc:
+      case Intrinsic::exp:
         intrinsicsToDefine.push_back(&*I);
         continue;
       }
@@ -4714,6 +4715,11 @@ void CWriter::printIntrinsicDefinition(FunctionType *funT, unsigned Opcode,
       headerUseMath();
       Out << "  r = trunc" << suffix << "(a);\n";
       break;
+
+      case Intrinsic::exp:
+      headerUseMath();
+        Out << "  r = exp" << suffix << "(a);\n";
+        break;
     }
   }
 
@@ -4781,6 +4787,7 @@ bool CWriter::lowerIntrinsics(Function &F) {
           case Intrinsic::stackprotector:
           case Intrinsic::dbg_value:
           case Intrinsic::dbg_declare:
+          case Intrinsic::exp:
             // We directly implement these intrinsics
             break;
 
@@ -5127,6 +5134,7 @@ bool CWriter::visitBuiltinCall(CallInst &I, Intrinsic::ID ID) {
   case Intrinsic::sqrt:
   case Intrinsic::trap:
   case Intrinsic::trunc:
+  case Intrinsic::exp:
     return false; // these use the normal function call emission
   }
 }
