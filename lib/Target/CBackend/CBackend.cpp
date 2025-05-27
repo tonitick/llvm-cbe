@@ -207,7 +207,9 @@ bool CWriter::runOnFunction(Function &F) {
   LI = &getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
 
   // Get rid of intrinsics we can't handle.
+  Out << "\n\n /* [ZZDEBUG] runOnFunction before lowerIntrinsics: \n" << F << " */\n";
   bool Modified = lowerIntrinsics(F);
+  Out << "\n\n /* [ZZDEBUG] runOnFunction after lowerIntrinsics: \n" << F << " */\n";
 
   // Output all floating point constants that cannot be printed accurately.
   printFloatingPointConstants(F);
@@ -2356,7 +2358,10 @@ bool CWriter::doInitialization(Module &M) {
 
 bool CWriter::doFinalization(Module &M) {
   // Output all code to the file
-  std::string methods = Out.str();
+  // std::string methods = Out.str();
+  std::string methods = "\n\n/* [ZZDEBUG] Methods */\n";
+  methods += Out.str();
+  methods += "\n\n/* [ZZDEBUG] Methods end*/\n";
   _Out.clear();
   generateHeader(M);
   std::string header = OutHeaders.str() + Out.str();
@@ -2526,6 +2531,7 @@ void CWriter::generateHeader(Module &M) {
   // Store the intrinsics which will be declared/defined below.
   SmallVector<Function *, 16> intrinsicsToDefine;
 
+  Out << "\n/* [ZZDEBUG] Function Declarations - intrinsicsToDefine */\n";
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I) {
     // Don't print declarations for intrinsic functions.
     // Store the used intrinsics, which need to be explicitly defined.
@@ -2611,6 +2617,7 @@ void CWriter::generateHeader(Module &M) {
   }
 
   // Output the global variable definitions and contents...
+  Out << "\n/* [ZZDEBUG] Global Var Declarations */\n";
   if (!M.global_empty()) {
     Out << "\n\n/* Global Variable Definitions and Initialization */\n";
     for (Module::global_iterator I = M.global_begin(), E = M.global_end();
@@ -2620,6 +2627,7 @@ void CWriter::generateHeader(Module &M) {
   }
 
   // Alias declarations...
+  Out << "\n/* [ZZDEBUG] Alias Declarations */\n";
   if (!M.alias_empty()) {
     Out << "\n/* External Alias Declarations */\n";
     for (Module::alias_iterator I = M.alias_begin(), E = M.alias_end(); I != E;
@@ -3338,7 +3346,9 @@ void CWriter::generateHeader(Module &M) {
   for (SmallVector<Function *, 16>::iterator I = intrinsicsToDefine.begin(),
                                              E = intrinsicsToDefine.end();
        I != E; ++I) {
+    Out << "\n\n/* [ZZDEBUG] printIntrinsicDefinition for Instruction " << **I << " */\n";
     printIntrinsicDefinition(**I, Out);
+    Out << "\n/* [ZZDEBUG] printIntrinsicDefinition for Instruction " << **I << " end */\n";
   }
 
   if (!M.empty())
@@ -3347,7 +3357,9 @@ void CWriter::generateHeader(Module &M) {
   if (!FCmpOps.empty())
     headerUseForceInline();
 
+  Out << "\n\n/* [ZZDEBUG] generateCompilerSpecificCode */\n";
   generateCompilerSpecificCode(OutHeaders, TD);
+  Out << "\n\n/* [ZZDEBUG] generateCompilerSpecificCode end */\n";
 
   // Loop over all fcmp compare operations. We do that after
   // generateCompilerSpecificCode because we need __forceinline!
@@ -3361,6 +3373,7 @@ void CWriter::generateHeader(Module &M) {
     defineFCmpOp(OutHeaders, Pred);
   }
   FCmpOps.clear();
+  Out << "\n\n/* [ZZDEBUG] generateHeader end */\n";
 }
 
 void CWriter::declareOneGlobalVariable(GlobalVariable *I) {
@@ -3691,6 +3704,8 @@ bool CWriter::canDeclareLocalLate(Instruction &I) {
 }
 
 void CWriter::printFunction(Function &F) {
+  // Out << "\n\n /* [ZZDEBUG] printFunction: " << F.getName() << " */\n";
+  Out << "\n\n /* [ZZDEBUG] printFunction for: \n" << F << " */\n";
   /// isStructReturn - Should this function actually return a struct by-value?
   bool isStructReturn = F.hasStructRetAttr();
 
@@ -3760,8 +3775,10 @@ void CWriter::printFunction(Function &F) {
   bool PrintedVar = false;
 
   // print local variable information for the function
+  Out << "\n\n /* [ZZDEBUG] local variables */\n";
   for (inst_iterator I = inst_begin(&F), E = inst_end(&F); I != E; ++I) {
     if (AllocaInst *AI = isDirectAlloca(&*I)) {
+      Out << "\n\n /* [ZZDEBUG] var for AllocaInst " << *AI << " */\n";
       unsigned Alignment = AI->getAlignment();
       bool IsOveraligned = Alignment && Alignment > TD->getABITypeAlignment(
                                                         AI->getAllocatedType());
@@ -3777,6 +3794,7 @@ void CWriter::printFunction(Function &F) {
       Out << ";    /* Address-exposed local */\n";
       PrintedVar = true;
     } else if (!isEmptyType(I->getType()) && !isInlinableInst(*I)) {
+      Out << "\n\n /* [ZZDEBUG] var for Instruction " << *I << " with type " << *I->getType() << " */\n";
       if (!canDeclareLocalLate(*I)) {
         Out << "  ";
         printTypeName(Out, I->getType(), false) << ' ' << GetValueName(&*I);
@@ -3801,6 +3819,7 @@ void CWriter::printFunction(Function &F) {
       PrintedVar = true;
     }
   }
+  Out << "\n /* [ZZDEBUG] local variables end */\n";
 
   if (PrintedVar)
     Out << '\n';
@@ -3816,6 +3835,7 @@ void CWriter::printFunction(Function &F) {
   }
 
   Out << "}\n\n";
+  Out << "\n\n /* [ZZDEBUG] printFunction: " << F.getName() << " end */\n";
 }
 
 void CWriter::printLoop(Loop *L) {
@@ -4740,7 +4760,9 @@ bool CWriter::lowerIntrinsics(Function &F) {
   // need to be lowered.
   for (auto &BB : F) {
     for (BasicBlock::iterator I = BB.begin(), E = BB.end(); I != E;) {
+    // for (BasicBlock::iterator I = BB.begin(), E = BB.end(); I != E; ++I) {
       if (CallInst *CI = dyn_cast<CallInst>(I++)) {
+      // if (CallInst *CI = dyn_cast<CallInst>(I)) {
         if (Function *F = CI->getCalledFunction()) {
           switch (F->getIntrinsicID()) {
           case Intrinsic::not_intrinsic:
