@@ -2560,6 +2560,7 @@ void CWriter::generateHeader(Module &M) {
       case Intrinsic::sqrt:
       case Intrinsic::trunc:
       case Intrinsic::exp:
+      case Intrinsic::vector_reduce_add:
         intrinsicsToDefine.push_back(&*I);
         continue;
       }
@@ -3343,6 +3344,9 @@ void CWriter::generateHeader(Module &M) {
   // Emit definitions of the intrinsics.
   if (!intrinsicsToDefine.empty())
     headerUseForceInline();
+
+  Out << "\n\n/* [ZZDEBUG] intrinsicsToDefine.size = " << intrinsicsToDefine.size() << " */\n";
+
   for (SmallVector<Function *, 16>::iterator I = intrinsicsToDefine.begin(),
                                              E = intrinsicsToDefine.end();
        I != E; ++I) {
@@ -4572,6 +4576,18 @@ void CWriter::printIntrinsicDefinition(FunctionType *funT, unsigned Opcode,
       }
       Out << ");\n";
     }
+  } else if (isa<VectorType>(elemT)) {
+    switch (Opcode) {
+    default:
+      DBG_ERRS("Unsupported Intrinsic!" << Opcode);
+      errorWithMessage("unsupported instrinsic");
+    case Intrinsic::vector_reduce_add:
+      char vectorSize = dyn_cast<VectorType>(elemT)->getNumElements();
+      Out << "  r = 0;\n";
+      for (i = 0; i < vectorSize; i++) {
+        Out << "  r += a.vector[" << (int)i << "];\n";
+      }
+    }
   } else if (elemIntT) {
     // handle integer ops
     cwriter_assert(isSupportedIntegerSize(*elemIntT) &&
@@ -4736,10 +4752,10 @@ void CWriter::printIntrinsicDefinition(FunctionType *funT, unsigned Opcode,
       Out << "  r = trunc" << suffix << "(a);\n";
       break;
 
-      case Intrinsic::exp:
+    case Intrinsic::exp:
       headerUseMath();
-        Out << "  r = exp" << suffix << "(a);\n";
-        break;
+      Out << "  r = exp" << suffix << "(a);\n";
+      break;
     }
   }
 
@@ -4810,6 +4826,7 @@ bool CWriter::lowerIntrinsics(Function &F) {
           case Intrinsic::dbg_value:
           case Intrinsic::dbg_declare:
           case Intrinsic::exp:
+          case Intrinsic::vector_reduce_add:
             // We directly implement these intrinsics
             break;
 
@@ -5157,6 +5174,7 @@ bool CWriter::visitBuiltinCall(CallInst &I, Intrinsic::ID ID) {
   case Intrinsic::trap:
   case Intrinsic::trunc:
   case Intrinsic::exp:
+  case Intrinsic::vector_reduce_add:
     return false; // these use the normal function call emission
   }
 }
